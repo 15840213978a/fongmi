@@ -61,7 +61,7 @@ public class MpvConfDialog extends BaseAlertDialog {
 
     private void onPositive(View view) {
         if (MpvConfigFile.write(binding.text.getText().toString())) dismiss();
-        else Notify.show("保存失败");
+        else Notify.show(R.string.player_mpv_conf_save_failed);
     }
 
     private void onNegative(View view) {
