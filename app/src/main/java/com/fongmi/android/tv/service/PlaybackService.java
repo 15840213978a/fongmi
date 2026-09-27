@@ -624,6 +624,16 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
 
     public interface NavigationCallback {
 
+        default boolean isExternalPlaybackActive() {
+            return false;
+        }
+
+        default void onPlay() {
+        }
+
+        default void onPause() {
+        }
+
         default void onPrev() {
         }
 

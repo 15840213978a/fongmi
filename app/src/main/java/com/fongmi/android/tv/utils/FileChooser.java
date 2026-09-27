@@ -28,6 +28,7 @@ import com.github.catvod.utils.Path;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Consumer;
 
 public final class FileChooser {
@@ -90,15 +91,25 @@ public final class FileChooser {
     }
 
     public static void getFileUri(@Nullable Uri uri, Consumer<Uri> callback) {
-        if (!isFileSource(uri)) return;
-        Task.execute(() -> resolveFileUri(uri, callback));
+        getFileUri(uri, callback, null);
     }
 
-    private static void resolveFileUri(Uri uri, Consumer<Uri> callback) {
+    public static void getFileUri(@Nullable Uri uri, Consumer<Uri> callback, @Nullable Runnable onError) {
+        if (!isFileSource(uri)) {
+            if (onError != null) App.post(onError);
+            return;
+        }
+        Task.execute(() -> resolveFileUri(uri, callback, onError));
+    }
+
+    private static void resolveFileUri(Uri uri, Consumer<Uri> callback, @Nullable Runnable onError) {
         try {
             deliver(callback, resolveFileUri(uri));
         } catch (IOException | SecurityException e) {
-            App.post(() -> Notify.show(e.getMessage()));
+            App.post(() -> {
+                Notify.show(e.getMessage());
+                if (onError != null) onError.run();
+            });
         }
     }
 
@@ -223,5 +234,15 @@ public final class FileChooser {
         if (uri == null) return false;
         String scheme = uri.getScheme();
         return ContentResolver.SCHEME_CONTENT.equalsIgnoreCase(scheme) || ContentResolver.SCHEME_FILE.equalsIgnoreCase(scheme);
+    }
+
+    public static boolean isLiveSource(Intent intent) {
+        String type = intent.getType();
+        if ("application/vnd.apple.mpegurl".equalsIgnoreCase(type) || "application/x-mpegurl".equalsIgnoreCase(type) || "audio/x-mpegurl".equalsIgnoreCase(type)) return true;
+        Uri uri = intent.getData();
+        String name = uri == null ? null : uri.getLastPathSegment();
+        if (name == null) return false;
+        name = name.toLowerCase(Locale.ROOT);
+        return name.endsWith(".m3u") || name.endsWith(".m3u8");
     }
 }

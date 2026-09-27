@@ -127,7 +127,7 @@ public final class TrackDialog extends BaseBottomSheetDialog implements TrackAda
     private void onSearch(View view) {
         FragmentActivity activity = requireActivity();
         dismissNow();
-        SubtitleSearchDialog.create().player(player).show(activity);
+        SubtitleSearchDialog.create().show(activity);
     }
 
     private void onChoose(View view) {
@@ -143,19 +143,19 @@ public final class TrackDialog extends BaseBottomSheetDialog implements TrackAda
 
     private void showSetting(FragmentActivity activity) {
         switch (type) {
-            case C.TRACK_TYPE_AUDIO -> AudioSettingDialog.create().player(player).show(activity);
-            case C.TRACK_TYPE_VIDEO -> VideoSettingDialog.create().player(player).show(activity);
+            case C.TRACK_TYPE_AUDIO -> AudioSettingDialog.create().show(activity);
+            case C.TRACK_TYPE_VIDEO -> VideoSettingDialog.create().show(activity);
             case C.TRACK_TYPE_TEXT -> SubtitleSettingDialog.create().view(subtitleView).player(player).show(activity);
         }
     }
 
-    private List<Track> getTrack() {
-        List<Track> items = new ArrayList<>();
+    private List<TrackAdapter.TrackItem> getTrack() {
+        List<TrackAdapter.TrackItem> items = new ArrayList<>();
         addTrack(items);
         return items;
     }
 
-    private void addTrack(List<Track> items) {
+    private void addTrack(List<TrackAdapter.TrackItem> items) {
         List<Tracks.Group> groups = player.getCurrentTracks().getGroups();
         for (int i = 0; i < groups.size(); i++) {
             Tracks.Group trackGroup = groups.get(i);
@@ -165,7 +165,7 @@ public final class TrackDialog extends BaseBottomSheetDialog implements TrackAda
                 String name = provider.getTrackName(format);
                 Track item = new Track(type, name, TrackUtil.describeFormat(format));
                 item.setSelected(trackGroup.isTrackSelected(j));
-                items.add(item);
+                items.add(new TrackAdapter.TrackItem(item, 0));
             }
         }
     }
