@@ -3,7 +3,7 @@ name: Build APK
 
 on:
   push:
-    branches: [ fongmi ]
+    branches: [ fongmi, 'codex/media3-public-compat-*' ]
   workflow_dispatch:
 
 permissions:
@@ -238,22 +238,23 @@ jobs:
       - name: Upload four APKs to Actions
         uses: actions/upload-artifact@v4
         with:
-          name: TV-5.6.3-four-apks
+          name: TV-5.6.6-four-apks
           path: dist/*.apk
           if-no-files-found: error
           retention-days: 30
 
       - name: Publish four APKs to GitHub Release
+        if: github.ref == 'refs/heads/fongmi'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
           TAG="auto-${{ github.run_number }}"
-          TITLE="TV 5.6.3 自动构建"
+          TITLE="TV 5.6.6 自动构建"
 
           cat > release-notes.md <<EOF
-          TV 5.6.3 自动构建
+          TV 5.6.6 自动构建
 
           Commit: ${{ github.sha }}
 
