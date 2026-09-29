@@ -169,22 +169,22 @@ jobs:
           test -f "$RUNNER_TEMP/fongmi-native-inspection/inspection.json"
           echo "Verified 5.6.6 inspection artifact restored."
 
-      - name: Download verified disc-dovi-test-37 APKs for MPV recovery
+      - name: Download retained test-41 APK artifact for MPV recovery
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/fongmi-mpv-source"
-          curl --fail --location --retry 3 --retry-all-errors \
-            --connect-timeout 20 --max-time 600 \
-            "https://github.com/15840213978a/fongmi/releases/download/disc-dovi-test-37/mobile-arm64-v8a.apk" \
-            --output "$RUNNER_TEMP/fongmi-mpv-source/mobile-arm64-v8a.apk"
-          curl --fail --location --retry 3 --retry-all-errors \
-            --connect-timeout 20 --max-time 600 \
-            "https://github.com/15840213978a/fongmi/releases/download/disc-dovi-test-37/mobile-armeabi-v7a.apk" \
-            --output "$RUNNER_TEMP/fongmi-mpv-source/mobile-armeabi-v7a.apk"
-          echo "5cbe3f1b8f4f659bce48e49cb836a56cce91a9ee74432097ba6b78312c9b2bcc  $RUNNER_TEMP/fongmi-mpv-source/mobile-arm64-v8a.apk" | sha256sum --check
-          echo "6c28f341a58f832e15edb9858d7428e2a5846fa8658def10e9d177886dada7ce  $RUNNER_TEMP/fongmi-mpv-source/mobile-armeabi-v7a.apk" | sha256sum --check
+          gh run download 36532250280 \
+            --repo 15840213978a/fongmi \
+            --name TV-5.6.6-four-apks \
+            --dir "$RUNNER_TEMP/fongmi-mpv-source"
+          test -f "$RUNNER_TEMP/fongmi-mpv-source/mobile-arm64-v8a.apk"
+          test -f "$RUNNER_TEMP/fongmi-mpv-source/mobile-armeabi-v7a.apk"
+          echo "0f1fa3db9267471691115f9d5293f3670d56e2618803830afe6f7aac181acae5  $RUNNER_TEMP/fongmi-mpv-source/mobile-arm64-v8a.apk" | sha256sum --check
+          echo "07d8f45e9a665fb32e75e4de82641c948d7be20cac0933e9e18bb6c23b5fbacf  $RUNNER_TEMP/fongmi-mpv-source/mobile-armeabi-v7a.apk" | sha256sum --check
 
-      - name: Restore verified 5.6.6 MPV disc menu binary from test-37
+      - name: Restore verified 5.6.6 MPV disc menu binary from test-41
         run: |
           set -euo pipefail
           python3 scripts/recover_official_mpv.py \
