@@ -201,6 +201,13 @@ jobs:
             --report official-native-stage.json
           cat official-native-stage.json
 
+      - name: Verify official Dolby Vision JNI against current FFmpeg ABIs
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_official_dovi_linkage.py \
+            --media3-root media3 \
+            --app-root app
+
       - name: Build matching FongMi Media3 AARs
         env:
           GRADLE_OPTS: "-Dorg.gradle.internal.http.connectionTimeout=120000 -Dorg.gradle.internal.http.socketTimeout=120000"
@@ -383,6 +390,7 @@ jobs:
                   dex_blob = b"".join(archive.read(name) for name in dex_names)
                   for bridge in (
                       b"androidx/media3/extractor/iso/udf/NativeUdfFileSystem",
+                      b"androidx/media3/exoplayer/iso/IsoNavigationSession",
                       b"androidx/media3/decoder/ffmpeg/FfmpegDolbyVisionP5Native",
                   ):
                       if bridge not in dex_blob:
@@ -450,7 +458,7 @@ jobs:
             cat >> release-notes.md <<'EOF'
 
           预发布测试版：从已校验的 disc-dovi-test-37 APK 恢复 5.6.6 的 discnav MPV，并从先前成功保存的 official-5.6.6-native-inspection Actions 产物恢复 libisoJNI.so、libffmpegDoviJNI.so、libcmg_decrypt.so、libmedia3effect.so 与两份 BD-J JAR。构建结束强制校验最终 APK 中这些文件确实存在。
-          本版进一步恢复 NativeUdfFileSystem 与 FfmpegDolbyVisionP5Native 的精确 Java/JNI 桥接：Java UDF/ISO9660 都失败时才启用官方 native UDF；Dolby Vision Profile 5 会在设备上调用官方 native capability probe 并写入日志。完整 IsoNavigationSession/BD-J 状态机和 P5 帧/RPU renderer handoff 仍需继续接线与 ARM 真机验证。
+          本版进一步恢复 NativeUdfFileSystem、最小 IsoNavigationSession 与 FfmpegDolbyVisionP5Native 的精确 Java/JNI 桥接，并在 CI 中强制验证官方 P5 JNI 所需的 LIBAVCODEC/LIBAVUTIL 动态符号与当前 FFmpeg 完全匹配。IsoNavigationSession 目前只恢复可核实的 open/read/pump/menu-state/overlay JNI 契约，尚未把 EXO 播放流切换完全交给导航状态机；P5 的硬解 Surface + RPU 帧同步也仍需继续接线与 ARM 真机验证。
           EOF
           fi
 

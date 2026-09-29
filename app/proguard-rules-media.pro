@@ -229,3 +229,7 @@
   public androidx.appcompat.app.AlertDialog$Builder setNegativeButton(int, android.content.DialogInterface$OnClickListener);
   public androidx.appcompat.app.AlertDialog create();
 }
+
+# 5.6.6 optical-disc navigation uses name-based JNI callbacks and field lookup.
+-keep class androidx.media3.exoplayer.iso.IsoNavigationSession { *; }
+-keep class androidx.media3.exoplayer.iso.IsoNavigationSession$** { *; }

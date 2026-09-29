@@ -110,6 +110,410 @@ final class NativeUdfFileSystem implements Closeable {
 }
 '''
 
+
+ISO_NAVIGATION = r'''/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ */
+package androidx.media3.exoplayer.iso;
+
+import androidx.annotation.Nullable;
+import androidx.media3.common.CacheDataReader;
+import androidx.media3.common.util.UnstableApi;
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+
+/**
+ * Minimal JNI-compatible optical-disc navigation session for FongMi 5.6.6.
+ *
+ * <p>This class intentionally recreates only the JNI contract that can be verified from the
+ * official binary. It does not claim to reconstruct the complete higher-level BD-J/menu state
+ * machine from optimized APK bytecode.
+ */
+@UnstableApi
+public final class IsoNavigationSession implements Closeable {
+
+  public static final int DISC_TYPE_UNKNOWN = 0;
+  public static final int DISC_TYPE_DVD = 1;
+  public static final int DISC_TYPE_BLURAY = 2;
+
+  private static final int MAX_PUMPS_PER_TASK = 16;
+  private static final boolean AVAILABLE;
+
+  static {
+    boolean available;
+    try {
+      System.loadLibrary("isoJNI");
+      available = true;
+    } catch (UnsatisfiedLinkError error) {
+      available = false;
+    }
+    AVAILABLE = available;
+  }
+
+  // These names and primitive types are part of the 5.6.6 native JNI contract.
+  private volatile boolean waitingForDrain;
+  private volatile int menuDomain;
+  private volatile int discontinuityId;
+  private volatile boolean titleEnded;
+  private volatile long stateVersion;
+  private volatile boolean menuActive;
+
+  private final ArrayBlockingQueue<Long> actionQueue;
+  private final ExecutorService executor;
+  private final AtomicBoolean pumpScheduled;
+  private final AtomicLong pendingAction;
+  private final int discType;
+  private final boolean bdj;
+  private final boolean hasMenu;
+
+  private long nativeHandle;
+  private long observedStateVersion;
+  private long changeSequence;
+
+  public static boolean isAvailable() {
+    return AVAILABLE;
+  }
+
+  @Nullable
+  public static IsoNavigationSession open(CacheDataReader reader) throws IOException {
+    return AVAILABLE ? new IsoNavigationSession(reader, /* mode= */ 0) : null;
+  }
+
+  public IsoNavigationSession(CacheDataReader reader, int mode) throws IOException {
+    actionQueue = new ArrayBlockingQueue<>(16);
+    pumpScheduled = new AtomicBoolean();
+    pendingAction = new AtomicLong();
+    executor =
+        Executors.newSingleThreadExecutor(
+            runnable -> {
+              Thread thread = new Thread(runnable, "Media3:IsoNavigation");
+              thread.setDaemon(true);
+              return thread;
+            });
+    nativeHandle = nativeOpen(reader, this, mode);
+    if (nativeHandle == 0) {
+      executor.shutdownNow();
+      throw new IOException("Could not open disc navigation session");
+    }
+    int detectedDiscType = nativeGetDiscType(nativeHandle);
+    if (detectedDiscType != DISC_TYPE_DVD && detectedDiscType != DISC_TYPE_BLURAY) {
+      nativeClose(nativeHandle);
+      nativeHandle = 0;
+      executor.shutdownNow();
+      throw new IOException("Unsupported disc navigation type: " + detectedDiscType);
+    }
+    discType = detectedDiscType;
+    bdj = nativeIsBdj(nativeHandle);
+    hasMenu = nativeHasMenu(nativeHandle);
+    refreshStateLocked();
+  }
+
+  public int getDiscType() {
+    return discType;
+  }
+
+  public boolean isBdj() {
+    return bdj;
+  }
+
+  public boolean hasMenu() {
+    return hasMenu;
+  }
+
+  public boolean isMenuActive() {
+    return menuActive;
+  }
+
+  public int getMenuDomain() {
+    return menuDomain;
+  }
+
+  public int getDiscontinuityId() {
+    return discontinuityId;
+  }
+
+  public boolean isTitleEnded() {
+    return titleEnded;
+  }
+
+  public boolean isWaitingForDrain() {
+    return waitingForDrain;
+  }
+
+  public synchronized long getChangeSequence() {
+    return changeSequence;
+  }
+
+  public synchronized int getCurrentTitleIndex() {
+    return nativeHandle == 0 ? -1 : nativeGetCurrentTitleIndex(nativeHandle);
+  }
+
+  public synchronized long getSegmentStartTimeUs() {
+    if (nativeHandle == 0 || menuActive) {
+      return Long.MIN_VALUE;
+    }
+    long value = nativeGetSegmentStartTimeUs(nativeHandle);
+    return value >= 0 ? value : Long.MIN_VALUE;
+  }
+
+  @Nullable
+  public synchronized int[] getDvdMenuHighlight() {
+    if (nativeHandle == 0 || discType != DISC_TYPE_DVD || !menuActive) {
+      return null;
+    }
+    return nativeGetDvdMenuHighlight(nativeHandle);
+  }
+
+  @Nullable
+  public synchronized HdmvOverlay getHdmvMenuOverlay(int generation) {
+    if (nativeHandle == 0 || discType != DISC_TYPE_BLURAY) {
+      return null;
+    }
+    int[] info = nativeGetHdmvMenuOverlayInfo(nativeHandle, generation);
+    if (info == null || info.length < 4) {
+      return null;
+    }
+    int[] pixels = null;
+    if (info[3] != 0 && info[1] > 0 && info[2] > 0) {
+      long pixelCount = (long) info[1] * info[2];
+      if (pixelCount > Integer.MAX_VALUE) {
+        return null;
+      }
+      pixels = new int[(int) pixelCount];
+      if (!nativeCopyHdmvMenuOverlay(nativeHandle, info[0], pixels)) {
+        return null;
+      }
+    }
+    return new HdmvOverlay(info, pixels);
+  }
+
+  public boolean sendAction(int action) {
+    if (!isSupportedAction(action) || !hasMenu) {
+      return false;
+    }
+    synchronized (this) {
+      if (nativeHandle == 0 || !actionQueue.offer((long) action)) {
+        return false;
+      }
+      changeSequence++;
+      notifyAll();
+    }
+    schedulePump();
+    return true;
+  }
+
+  public static boolean isSupportedAction(int action) {
+    return (action >= 1 && action <= 8) || action == 11;
+  }
+
+  public synchronized int read(byte[] buffer, int offset, int length, int flags)
+      throws IOException {
+    ensureOpenLocked();
+    if (offset < 0 || length < 0 || offset > buffer.length - length) {
+      throw new IndexOutOfBoundsException();
+    }
+    if (length == 0) {
+      return 0;
+    }
+    int result = nativeRead(nativeHandle, buffer, offset, length, flags);
+    refreshStateLocked();
+    if (hasPendingActions()) {
+      schedulePump();
+    }
+    return result;
+  }
+
+  public synchronized boolean resumeDvdWait(int discontinuity) throws IOException {
+    ensureOpenLocked();
+    if (!nativeResumeDvdWait(nativeHandle, discontinuity)) {
+      return false;
+    }
+    refreshStateLocked();
+    if (hasPendingActions()) {
+      schedulePump();
+    }
+    return true;
+  }
+
+  public synchronized long getWaitTimeoutMs() throws IOException {
+    ensureOpenLocked();
+    return nativeGetWaitTimeoutMs(nativeHandle);
+  }
+
+  public synchronized boolean selectTitle(int titleIndex) throws IOException {
+    ensureOpenLocked();
+    boolean accepted = nativeSelectTitle(nativeHandle, titleIndex);
+    refreshStateLocked();
+    return accepted;
+  }
+
+  public synchronized boolean seekToTimeUs(long timeUs) throws IOException {
+    ensureOpenLocked();
+    boolean accepted = nativeSeekToTimeUs(nativeHandle, timeUs);
+    refreshStateLocked();
+    return accepted;
+  }
+
+  public synchronized boolean seekToChapter(int chapterIndex) throws IOException {
+    ensureOpenLocked();
+    boolean accepted = nativeSeekToChapter(nativeHandle, chapterIndex);
+    refreshStateLocked();
+    return accepted;
+  }
+
+  @Override
+  public synchronized void close() {
+    executor.shutdownNow();
+    if (nativeHandle != 0) {
+      nativeClose(nativeHandle);
+      nativeHandle = 0;
+    }
+    actionQueue.clear();
+    pendingAction.set(0);
+    waitingForDrain = false;
+    titleEnded = false;
+    menuActive = false;
+    menuDomain = 0;
+    changeSequence++;
+    notifyAll();
+  }
+
+  private long pollAction() {
+    Long queued = actionQueue.poll();
+    return queued != null ? queued : pendingAction.getAndSet(0);
+  }
+
+  private boolean hasPendingActions() {
+    return !actionQueue.isEmpty() || pendingAction.get() != 0;
+  }
+
+  private void schedulePump() {
+    if (!pumpScheduled.compareAndSet(false, true)) {
+      return;
+    }
+    try {
+      executor.execute(this::pumpLoop);
+    } catch (RejectedExecutionException error) {
+      pumpScheduled.set(false);
+    }
+  }
+
+  private void pumpLoop() {
+    try {
+      for (int i = 0; i < MAX_PUMPS_PER_TASK; i++) {
+        synchronized (this) {
+          if (nativeHandle == 0 || !hasPendingActions()) {
+            break;
+          }
+          nativePump(nativeHandle);
+          refreshStateLocked();
+        }
+      }
+    } finally {
+      pumpScheduled.set(false);
+      synchronized (this) {
+        if (nativeHandle != 0 && hasPendingActions()) {
+          schedulePump();
+        }
+      }
+    }
+  }
+
+  private void refreshStateLocked() {
+    if (nativeHandle == 0 || observedStateVersion == stateVersion) {
+      return;
+    }
+    observedStateVersion = stateVersion;
+    changeSequence++;
+    notifyAll();
+  }
+
+  private void ensureOpenLocked() throws IOException {
+    if (nativeHandle == 0) {
+      throw new IOException("Disc navigation session is closed");
+    }
+  }
+
+  public static final class HdmvOverlay {
+    public final int[] info;
+    @Nullable public final int[] pixels;
+
+    HdmvOverlay(int[] info, @Nullable int[] pixels) {
+      this.info = info;
+      this.pixels = pixels;
+    }
+  }
+
+  private static native long nativeOpen(
+      CacheDataReader reader, IsoNavigationSession session, int mode);
+
+  private static native int nativeGetDiscType(long handle);
+
+  private static native boolean nativeIsBdj(long handle);
+
+  private static native int nativeGetTitleCount(long handle);
+
+  private static native int nativeGetCurrentTitleIndex(long handle);
+
+  private static native long nativeGetSegmentStartTimeUs(long handle);
+
+  private static native int nativeGetCurrentClipIndex(long handle);
+
+  private static native long[] nativeGetTitleInfo(long handle, int titleIndex);
+
+  private static native long[] nativeGetChapterTimesUs(long handle, int titleIndex);
+
+  private static native String[] nativeGetClipNames(long handle, int titleIndex);
+
+  private static native long[] nativeGetClipTimesUs(long handle, int titleIndex);
+
+  private static native String[] nativeGetTrackInfo(
+      long handle, int titleIndex, boolean subtitle, int clipIndex);
+
+  private static native long[][] nativeGetClipInfo(long handle, int clipIndex);
+
+  private static native boolean nativeSelectTitle(long handle, int titleIndex);
+
+  private static native boolean nativeSeekToTimeUs(long handle, long timeUs);
+
+  private static native boolean nativeSeekToChapter(long handle, int chapterIndex);
+
+  private static native boolean nativeSelectTrack(long handle, boolean subtitle, int trackIndex);
+
+  private static native boolean nativeDisableSubtitles(long handle);
+
+  private static native int nativeGetSelectedTrackIndex(long handle, boolean subtitle);
+
+  private static native boolean nativeHasMenu(long handle);
+
+  private static native int[] nativeGetDvdMenuHighlight(long handle);
+
+  private static native int[] nativeGetHdmvMenuOverlayInfo(long handle, int generation);
+
+  private static native boolean nativeCopyHdmvMenuOverlay(
+      long handle, int generation, int[] pixels);
+
+  private static native int nativeRead(
+      long handle, byte[] buffer, int offset, int length, int flags);
+
+  private static native long nativeGetWaitTimeoutMs(long handle);
+
+  private static native boolean nativeResumeDvdWait(long handle, int discontinuity);
+
+  private static native void nativePump(long handle);
+
+  private static native void nativeClose(long handle);
+}
+'''
+
 DOVI = r'''/*
  * Copyright (C) 2026 The Android Open Source Project
  *
@@ -474,6 +878,22 @@ def main() -> None:
     )
     udf.write_text(text, encoding="utf-8")
 
+    iso_navigation = (
+        root
+        / "libraries"
+        / "exoplayer"
+        / "src"
+        / "main"
+        / "java"
+        / "androidx"
+        / "media3"
+        / "exoplayer"
+        / "iso"
+        / "IsoNavigationSession.java"
+    )
+    iso_navigation.parent.mkdir(parents=True, exist_ok=True)
+    iso_navigation.write_text(ISO_NAVIGATION, encoding="utf-8")
+
     dovi = (
         root
         / "libraries"
@@ -513,6 +933,7 @@ def main() -> None:
     library.write_text(text, encoding="utf-8")
 
     print("Restored NativeUdfFileSystem JNI bridge")
+    print("Restored minimal IsoNavigationSession JNI bridge")
     print("Restored FfmpegDolbyVisionP5Native JNI bridge and P5 capability probe")
 
 
