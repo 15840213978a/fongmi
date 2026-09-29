@@ -18,7 +18,7 @@ def symbols(path: Path, *, undefined: bool) -> set[str]:
         match = SYMBOL.match(line)
         if not match:
             continue
-        name, section = match.groups()
+        section, name = match.groups()
         if (section == "UND") != undefined:
             continue
         result.add(name.replace("@@", "@"))
@@ -57,6 +57,8 @@ def verify_abi(media3: Path, app: Path, abi: str) -> None:
         if symbol.startswith("av_") and "@LIBAV" in symbol
     }
     exports = symbols(avcodec, undefined=False) | symbols(avutil, undefined=False)
+    if not required_symbols:
+        raise SystemExit(f"{abi}: no versioned FFmpeg imports found in official Dolby Vision JNI")
     missing = sorted(required_symbols - exports)
     if missing:
         raise SystemExit(
