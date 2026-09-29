@@ -1,4 +1,5 @@
 name: Build APK
+# trigger: native-bridge-rebuild-1
 # Player dependencies are pinned below for reproducible four-APK builds.
 
 on:
