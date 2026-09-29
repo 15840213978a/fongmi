@@ -620,9 +620,9 @@ def patch_exoplayer(root: Path) -> None:
     text = impl.read_text(encoding="utf-8")
     text = replace_once(
         text,
-        "import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;\n",
-        """import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
-import androidx.media3.exoplayer.source.DiscNavigationSource;
+        "import androidx.media3.exoplayer.source.MaskingMediaSource;\n",
+        """import androidx.media3.exoplayer.source.DiscNavigationSource;
+import androidx.media3.exoplayer.source.MaskingMediaSource;
 """,
         "ExoPlayerImpl disc import",
     )
