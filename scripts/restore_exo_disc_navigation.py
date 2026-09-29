@@ -241,18 +241,28 @@ def upgrade_session(root: Path) -> None:
     if (action == null) {
       return 0;
     }
-    return switch (action) {
-      case "up" -> ACTION_UP;
-      case "down" -> ACTION_DOWN;
-      case "left" -> ACTION_LEFT;
-      case "right" -> ACTION_RIGHT;
-      case "select" -> ACTION_SELECT;
-      case "menu" -> ACTION_MENU;
-      case "popup" -> ACTION_POPUP;
-      case "prev" -> ACTION_PREV;
-      case "title-menu" -> ACTION_TITLE_MENU;
-      default -> 0;
-    };
+    switch (action) {
+      case "up":
+        return ACTION_UP;
+      case "down":
+        return ACTION_DOWN;
+      case "left":
+        return ACTION_LEFT;
+      case "right":
+        return ACTION_RIGHT;
+      case "select":
+        return ACTION_SELECT;
+      case "menu":
+        return ACTION_MENU;
+      case "popup":
+        return ACTION_POPUP;
+      case "prev":
+        return ACTION_PREV;
+      case "title-menu":
+        return ACTION_TITLE_MENU;
+      default:
+        return 0;
+    }
   }
 
   public boolean sendAction(String action) {
