@@ -153,6 +153,7 @@ jobs:
           git -C media3 apply "$GITHUB_WORKSPACE/patches/media3-ass-matroska-test.patch"
           git -C media3 apply "$GITHUB_WORKSPACE/patches/media3-iso9660-fallback.patch"
           git -C media3 apply "$GITHUB_WORKSPACE/patches/media3-mpv-disc-navigation-test.patch"
+          python3 scripts/restore_official_java_bridges.py --media3-root media3
           git -C media3 diff --check
 
       - name: Download retained verified 5.6.6 native inspection artifact
@@ -379,6 +380,13 @@ jobs:
                   mpv = archive.read(f"lib/{abi}/libmpv.so")
                   if not all(symbol in mpv for symbol in (b"dvdnav_menu_call", b"bd_menu_call", b"disc-menu-active")):
                       raise SystemExit(f"::error::MPV disc menu support missing from {apk}")
+                  dex_blob = b"".join(archive.read(name) for name in dex_names)
+                  for bridge in (
+                      b"androidx/media3/extractor/iso/udf/NativeUdfFileSystem",
+                      b"androidx/media3/decoder/ffmpeg/FfmpegDolbyVisionP5Native",
+                  ):
+                      if bridge not in dex_blob:
+                          raise SystemExit(f"::error::JNI bridge class {bridge!r} missing from {apk}")
               print(f"ISO 9660 reader found in {apk}")
           PY
 
@@ -442,7 +450,7 @@ jobs:
             cat >> release-notes.md <<'EOF'
 
           预发布测试版：从已校验的 disc-dovi-test-37 APK 恢复 5.6.6 的 discnav MPV，并从先前成功保存的 official-5.6.6-native-inspection Actions 产物恢复 libisoJNI.so、libffmpegDoviJNI.so、libcmg_decrypt.so、libmedia3effect.so 与两份 BD-J JAR。构建结束强制校验最终 APK 中这些文件确实存在。
-          注意：本版首先解决“官方约 156MB、自建约 146MB”的原生载荷缺口。专用 JNI 的完整 Java 调用链仍需逐项恢复和 ARM 真机验证；文件被打包不等于对应功能已经完全恢复。
+          本版进一步恢复 NativeUdfFileSystem 与 FfmpegDolbyVisionP5Native 的精确 Java/JNI 桥接：Java UDF/ISO9660 都失败时才启用官方 native UDF；Dolby Vision Profile 5 会在设备上调用官方 native capability probe 并写入日志。完整 IsoNavigationSession/BD-J 状态机和 P5 帧/RPU renderer handoff 仍需继续接线与 ARM 真机验证。
           EOF
           fi
 

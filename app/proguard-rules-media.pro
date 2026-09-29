@@ -27,6 +27,14 @@
     native <methods>;
 }
 
+
+# 5.6.6 name-based JNI bridges. These class names must not be obfuscated because
+# libisoJNI exports Java_* symbols and libffmpegDoviJNI registers this class by name.
+-keep class androidx.media3.extractor.iso.udf.NativeUdfFileSystem { *; }
+-keep class androidx.media3.extractor.iso.udf.NativeUdfFileSystem$UnsupportedImageException { *; }
+-keep class androidx.media3.decoder.ffmpeg.FfmpegDolbyVisionP5Native { *; }
+-keep class androidx.media3.decoder.ffmpeg.FfmpegDolbyVisionP5Native$** { *; }
+
 -keep, includedescriptorclasses class androidx.media3.decoder.ffmpeg.FfmpegAudioDecoder {
   private java.nio.ByteBuffer growOutputBuffer(androidx.media3.decoder.SimpleDecoderOutputBuffer, int, int);
 }
