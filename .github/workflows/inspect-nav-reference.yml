@@ -1,0 +1,39 @@
+name: Inspect ISO navigation reference
+
+on:
+  push:
+    branches:
+      - codex/disc-dovi-rebuild-20260929
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download retained 5.6.6 navigation reference
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/nav-ref"
+          gh run download 36399587394 \
+            --repo 15840213978a/fongmi \
+            --name official-5.6.6-native-inspection \
+            --dir "$RUNNER_TEMP/nav-ref"
+          test -f "$RUNNER_TEMP/nav-ref/decompiled/IsoNavigationSession.java"
+
+      - name: Print verified navigation control flow
+        run: |
+          set -euo pipefail
+          src="$RUNNER_TEMP/nav-ref/decompiled/IsoNavigationSession.java"
+          echo '===== ACTION / MENU / READ / SEEK REFERENCE ====='
+          grep -n -E 'sendAction|isSupportedAction|actionQueue|nativeRead|nativePump|nativeSelectTitle|nativeSeekToTimeUs|nativeSeekToChapter|menuActive|waitingForDrain|resumeDvdWait|switch|case ' "$src" || true
+          echo '===== SOURCE WINDOW ====='
+          sed -n '1,520p' "$src"
