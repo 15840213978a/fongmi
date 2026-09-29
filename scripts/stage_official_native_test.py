@@ -1,4 +1,4 @@
-"""Stage verified official 5.6.6 native payloads for compatibility testing.
+"""Stage verified official 5.6.7 native payloads for compatibility testing.
 
 The preferred input is the previously verified Actions inspection artifact.
 The source-built libmedia3ass.so is intentionally kept instead of replacing it
@@ -13,8 +13,8 @@ import zipfile
 from pathlib import Path
 
 APK_SHA256 = {
-    "arm64-v8a": "0906ebed0424c25df4886735efc40146044f9c78ee2b7e7a5d1c470da56c6173",
-    "armeabi-v7a": "ff6bfa26006a50c6825b64d2f6a3107dfa99b8277509909bd10987b6ca09fcc5",
+    "arm64-v8a": "5428c11d5aa09813dfa2fde8a32be2beeeddfc45d093b89e46ed53cd696a3b3c",
+    "armeabi-v7a": "492bc0b1d4607a41d3c3f56d37bc590be0ee6b8b481bebe52f6dd2b0819d2385",
 }
 
 NATIVE_FILES = (
@@ -187,11 +187,11 @@ def main() -> None:
             records["bdj"].append(copy_record(
                 data, app_root / "src" / "main" / "assets" / "bdj" / name
             ))
-        source = "official-5.6.6-apks"
+        source = "official-5.6.7-apks"
 
     total_bytes = sum(item["bytes"] for group in records.values() for item in group)
     out = {
-        "official_version": "5.6.6",
+        "official_version": "5.6.7" if source == "official-5.6.7-apks" else "5.6.6",
         "source": source,
         "staged_native_files": list(NATIVE_FILES),
         "staged_bdj_files": list(BDJ_FILES),
@@ -206,7 +206,7 @@ def main() -> None:
 
     report_path = args.report or (app_root.parent / "official-native-stage.json")
     report_path.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"Staged verified 5.6.6 payloads: {total_bytes} bytes")
+    print(f"Staged verified 5.6.7 payloads: {total_bytes} bytes")
     print(f"Report: {report_path}")
 
 

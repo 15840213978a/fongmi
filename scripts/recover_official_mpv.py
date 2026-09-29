@@ -1,4 +1,4 @@
-"""Restore the verified 5.6.6 MPV disc-menu binary to the matching Media3 build.
+"""Restore the verified 5.6.7 MPV disc-menu binary to the matching Media3 build.
 
 The public MPV binary has libdvdnav/libbluray, but lacks mpv's `discnav` command.
 Only libmpv.so is replaced. FFmpeg and the Android libplayer JNI bridge remain
@@ -17,12 +17,12 @@ from pathlib import Path
 
 APK_HASHES = {
     "arm64-v8a": {
-        "0906ebed0424c25df4886735efc40146044f9c78ee2b7e7a5d1c470da56c6173",  # official 5.6.6
+        "5428c11d5aa09813dfa2fde8a32be2beeeddfc45d093b89e46ed53cd696a3b3c",  # official 5.6.7
         "5cbe3f1b8f4f659bce48e49cb836a56cce91a9ee74432097ba6b78312c9b2bcc",  # disc-dovi-test-37
         "0f1fa3db9267471691115f9d5293f3670d56e2618803830afe6f7aac181acae5",  # disc-dovi-test-41
     },
     "armeabi-v7a": {
-        "ff6bfa26006a50c6825b64d2f6a3107dfa99b8277509909bd10987b6ca09fcc5",  # official 5.6.6
+        "492bc0b1d4607a41d3c3f56d37bc590be0ee6b8b481bebe52f6dd2b0819d2385",  # official 5.6.7
         "6c28f341a58f832e15edb9858d7428e2a5846fa8658def10e9d177886dada7ce",  # disc-dovi-test-37
         "07d8f45e9a665fb32e75e4de82641c948d7be20cac0933e9e18bb6c23b5fbacf",  # disc-dovi-test-41
     },
