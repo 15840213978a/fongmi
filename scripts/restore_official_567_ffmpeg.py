@@ -1,9 +1,10 @@
 """Restore the FFmpeg shared-library set from verified official FongMi 5.6.7 APKs.
 
-The official Dolby Vision JNI is linked against FongMi's FFmpeg build. Keeping
-libffmpegJNI.so source-built while replacing the FFmpeg dependency family lets
-the Java/JNI surface remain reproducible and restores the missing Dolby Vision
-RPU parser exports required by the official bridge.
+The official Dolby Vision JNI is linked against FongMi's FFmpeg build. The
+official FFmpeg dependency family is staged before the Media3 native build so
+CMake links the source-built libffmpegJNI.so against the same 5.6.7 ABI. The
+native linker is the compatibility gate; libffmpegJNI.so does not exist yet at
+this staging step.
 """
 
 import argparse
@@ -73,27 +74,6 @@ def symbols(path: Path, undefined: bool) -> set[str]:
     return result
 
 
-def verify_source_jni(media3: Path, abi: str) -> None:
-    root = media3 / "libraries/decoder_ffmpeg/src/main/jniLibs" / abi
-    jni = root / "libffmpegJNI.so"
-    if not jni.is_file():
-        raise ValueError(f"Missing source-built {jni}")
-    required = {
-        s for s in symbols(jni, True)
-        if s.startswith(("av_", "avcodec_", "avfilter_", "avformat_", "avio_", "swr_", "sws_"))
-        and "@LIB" in s
-    }
-    exports = set()
-    for name in FFMPEG_LIBS:
-        exports.update(symbols(root / name, False))
-    missing = sorted(required - exports)
-    if missing:
-        raise ValueError(
-            f"{abi}: source-built libffmpegJNI.so requires symbols missing from official 5.6.7 FFmpeg: {missing}"
-        )
-    print(f"{abi}: source-built libffmpegJNI.so is compatible with official 5.6.7 FFmpeg")
-
-
 def restore(apk: Path, media3: Path, abi: str) -> None:
     digest = sha256(apk)
     if digest != APK_SHA256[abi]:
@@ -110,7 +90,6 @@ def restore(apk: Path, media3: Path, abi: str) -> None:
             target = target_root / name
             target.write_bytes(data)
             print(f"{abi}: restored {name} ({len(data)} bytes)")
-    verify_source_jni(media3, abi)
 
 
 def main() -> None:
