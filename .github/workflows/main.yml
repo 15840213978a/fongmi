@@ -154,6 +154,7 @@ jobs:
           git -C media3 apply "$GITHUB_WORKSPACE/patches/media3-iso9660-fallback.patch"
           git -C media3 apply "$GITHUB_WORKSPACE/patches/media3-mpv-disc-navigation-test.patch"
           python3 scripts/restore_official_java_bridges.py --media3-root media3
+          python3 scripts/restore_exo_disc_navigation.py --media3-root media3
           git -C media3 diff --check
 
       - name: Download verified official 5.6.7 APKs
@@ -387,6 +388,8 @@ jobs:
                   for bridge in (
                       b"androidx/media3/extractor/iso/udf/NativeUdfFileSystem",
                       b"androidx/media3/exoplayer/iso/IsoNavigationSession",
+                      b"androidx/media3/exoplayer/source/DiscNavigationSource",
+                      b"androidx/media3/exoplayer/source/iso/IsoNavigationDataSource",
                       b"androidx/media3/decoder/ffmpeg/FfmpegDolbyVisionP5Native",
                   ):
                       if bridge not in dex_blob:
@@ -454,7 +457,7 @@ jobs:
             cat >> release-notes.md <<'EOF'
 
           预发布测试版：从已校验的 disc-dovi-test-37 APK 恢复 5.6.7 的 discnav MPV，并从先前成功保存的 official-5.6.7-native-inspection Actions 产物恢复 libisoJNI.so、libffmpegDoviJNI.so、libcmg_decrypt.so、libmedia3effect.so 与两份 BD-J JAR。新增与官方包名/类名/native 方法签名一致的 ISO/UDF 与 Dolby Vision P5 JNI bridge，并在构建前校验 libffmpegDoviJNI.so 对当前 libavcodec/libavutil 的动态符号兼容性。
-          本版进一步恢复 NativeUdfFileSystem、最小 IsoNavigationSession 与 FfmpegDolbyVisionP5Native 的精确 Java/JNI 桥接，并在 CI 中强制验证官方 P5 JNI 所需的 LIBAVCODEC/LIBAVUTIL 动态符号与当前 FFmpeg 完全匹配。IsoNavigationSession 目前只恢复可核实的 open/read/pump/menu-state/overlay JNI 契约，尚未把 EXO 播放流切换完全交给导航状态机；P5 的硬解 Surface + RPU 帧同步也仍需继续接线与 ARM 真机验证。
+          本版进一步恢复 NativeUdfFileSystem、最小 IsoNavigationSession 与 FfmpegDolbyVisionP5Native 的精确 Java/JNI 桥接，并在 CI 中强制验证官方 P5 JNI 所需的 LIBAVCODEC/LIBAVUTIL 动态符号与当前 FFmpeg 完全匹配。IsoNavigationSession 已按官方 5.6.7 动作编号和 JNI 状态字段补齐，并新增 EXO 导航 DataSource：DVD/BD 的 ProgressiveMediaSource 优先从 nativeRead() 获取导航流，菜单/标题/章节动作统一进入同一 session；不支持的镜像继续回退静态 ISO 解析。当前仍需 ARM 真机验证菜单切换时的 segment/discontinuity 重建，以及 P5 的硬解 Surface + RPU 帧同步。
           EOF
           fi
 

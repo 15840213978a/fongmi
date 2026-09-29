@@ -42,18 +42,27 @@ public class MpvPlayerEngine implements PlayerEngine, Player.Listener {
         return player;
     }
 
+    @Override
+    public boolean isIsoNavigationPlayback() {
+        return player.canOpenDiscMenu();
+    }
+
+    @Override
     public boolean hasDiscMenu() {
         return player.canOpenDiscMenu();
     }
 
+    @Override
     public boolean isDiscMenuActive() {
         return player.isDiscMenuActive();
     }
 
+    @Override
     public boolean sendDiscMenuAction(String action) {
         return player.sendDiscNav(action);
     }
 
+    @Override
     public boolean sendDiscMenuPointer(float x, float y, boolean activate) {
         return player.sendDiscNavPointer(x, y, activate);
     }

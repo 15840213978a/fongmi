@@ -102,7 +102,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     }
 
     protected boolean isIsoNavigationPlayback() {
-        return isDiscMenuActive();
+        return hasPlaybackSource() && player().isIsoNavigationPlayback();
     }
 
     protected boolean isDiscMenuActive() {

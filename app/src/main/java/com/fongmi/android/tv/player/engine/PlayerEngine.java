@@ -27,6 +27,26 @@ public interface PlayerEngine {
     default void bindPlayerView(PlayerView view) {
     }
 
+    default boolean isIsoNavigationPlayback() {
+        return false;
+    }
+
+    default boolean hasDiscMenu() {
+        return false;
+    }
+
+    default boolean isDiscMenuActive() {
+        return false;
+    }
+
+    default boolean sendDiscMenuAction(String action) {
+        return false;
+    }
+
+    default boolean sendDiscMenuPointer(float x, float y, boolean activate) {
+        return false;
+    }
+
     default PlayerEffect getEffect() {
         return PlayerEffect.NONE;
     }

@@ -92,6 +92,31 @@ public class ExoPlayerEngine implements PlayerEngine, AnalyticsListener, Player.
     }
 
     @Override
+    public boolean isIsoNavigationPlayback() {
+        return player.isDiscNavigationPlayback();
+    }
+
+    @Override
+    public boolean hasDiscMenu() {
+        return player.hasDiscMenu();
+    }
+
+    @Override
+    public boolean isDiscMenuActive() {
+        return player.isDiscMenuActive();
+    }
+
+    @Override
+    public boolean sendDiscMenuAction(String action) {
+        return player.sendDiscMenuAction(action);
+    }
+
+    @Override
+    public boolean sendDiscMenuPointer(float x, float y, boolean activate) {
+        return player.sendDiscMenuPointer(x, y, activate);
+    }
+
+    @Override
     public int getAudioChannelCount() {
         Format format = player.getAudioFormat();
         return format == null ? Format.NO_VALUE : format.channelCount;
