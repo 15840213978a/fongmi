@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: build-apk-${{ github.ref }}
@@ -154,31 +155,47 @@ jobs:
           git -C media3 apply "$GITHUB_WORKSPACE/patches/media3-mpv-disc-navigation-test.patch"
           git -C media3 diff --check
 
-      - name: Download verified official 5.6.6 menu binaries
+      - name: Download retained verified 5.6.6 native inspection artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/fongmi-official"
-          for filename in mobile-arm64_v8a.apk mobile-armeabi_v7a.apk; do
-            curl --fail --location --retry 3 --retry-all-errors \
-              --connect-timeout 20 --max-time 600 \
-              "https://github.com/FongMi/Release/releases/download/5.6.6/$filename" \
-              --output "$RUNNER_TEMP/fongmi-official/$filename"
-          done
+          mkdir -p "$RUNNER_TEMP/fongmi-native-inspection"
+          gh run download 36399587394 \
+            --repo 15840213978a/fongmi \
+            --name official-5.6.6-native-inspection \
+            --dir "$RUNNER_TEMP/fongmi-native-inspection"
+          test -f "$RUNNER_TEMP/fongmi-native-inspection/inspection.json"
+          echo "Verified 5.6.6 inspection artifact restored."
 
-      - name: Restore MPV disc menu commands for both ABIs
+      - name: Download verified disc-dovi-test-37 APKs for MPV recovery
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/fongmi-mpv-source"
+          curl --fail --location --retry 3 --retry-all-errors \
+            --connect-timeout 20 --max-time 600 \
+            "https://github.com/15840213978a/fongmi/releases/download/disc-dovi-test-37/mobile-arm64-v8a.apk" \
+            --output "$RUNNER_TEMP/fongmi-mpv-source/mobile-arm64-v8a.apk"
+          curl --fail --location --retry 3 --retry-all-errors \
+            --connect-timeout 20 --max-time 600 \
+            "https://github.com/15840213978a/fongmi/releases/download/disc-dovi-test-37/mobile-armeabi-v7a.apk" \
+            --output "$RUNNER_TEMP/fongmi-mpv-source/mobile-armeabi-v7a.apk"
+          echo "5cbe3f1b8f4f659bce48e49cb836a56cce91a9ee74432097ba6b78312c9b2bcc  $RUNNER_TEMP/fongmi-mpv-source/mobile-arm64-v8a.apk" | sha256sum --check
+          echo "6c28f341a58f832e15edb9858d7428e2a5846fa8658def10e9d177886dada7ce  $RUNNER_TEMP/fongmi-mpv-source/mobile-armeabi-v7a.apk" | sha256sum --check
+
+      - name: Restore verified 5.6.6 MPV disc menu binary from test-37
         run: |
           set -euo pipefail
           python3 scripts/recover_official_mpv.py \
-            --arm64 "$RUNNER_TEMP/fongmi-official/mobile-arm64_v8a.apk" \
-            --armeabi "$RUNNER_TEMP/fongmi-official/mobile-armeabi_v7a.apk" \
+            --arm64 "$RUNNER_TEMP/fongmi-mpv-source/mobile-arm64-v8a.apk" \
+            --armeabi "$RUNNER_TEMP/fongmi-mpv-source/mobile-armeabi-v7a.apk" \
             --media3-root media3
 
-      - name: Stage verified official 5.6.6 native payloads
+      - name: Stage retained verified official 5.6.6 native payloads
         run: |
           set -euo pipefail
           python3 scripts/stage_official_native_test.py \
-            --arm64 "$RUNNER_TEMP/fongmi-official/mobile-arm64_v8a.apk" \
-            --armeabi "$RUNNER_TEMP/fongmi-official/mobile-armeabi_v7a.apk" \
+            --inspection-root "$RUNNER_TEMP/fongmi-native-inspection" \
             --app-root app \
             --report official-native-stage.json
           cat official-native-stage.json
@@ -424,7 +441,7 @@ jobs:
           elif [ "$GITHUB_REF" = 'refs/heads/codex/disc-dovi-rebuild-20260929' ]; then
             cat >> release-notes.md <<'EOF'
 
-          预发布测试版：校验官方 5.6.6 APK 的 SHA256，恢复带 discnav 命令的官方 libmpv.so，并把官方缺失于公开 Media3 的 libisoJNI.so、libffmpegDoviJNI.so、libcmg_decrypt.so、libmedia3effect.so 与两份 BD-J JAR 作为兼容性测试载荷打入 APK。保留源码构建的 ISO 9660、ASS 功能，并强制校验最终 APK 中这些文件确实存在。
+          预发布测试版：从已校验的 disc-dovi-test-37 APK 恢复 5.6.6 的 discnav MPV，并从先前成功保存的 official-5.6.6-native-inspection Actions 产物恢复 libisoJNI.so、libffmpegDoviJNI.so、libcmg_decrypt.so、libmedia3effect.so 与两份 BD-J JAR。构建结束强制校验最终 APK 中这些文件确实存在。
           注意：本版首先解决“官方约 156MB、自建约 146MB”的原生载荷缺口。专用 JNI 的完整 Java 调用链仍需逐项恢复和 ARM 真机验证；文件被打包不等于对应功能已经完全恢复。
           EOF
           fi

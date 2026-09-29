@@ -16,8 +16,14 @@ from pathlib import Path
 
 
 APK_HASHES = {
-    "arm64-v8a": "0906ebed0424c25df4886735efc40146044f9c78ee2b7e7a5d1c470da56c6173",
-    "armeabi-v7a": "ff6bfa26006a50c6825b64d2f6a3107dfa99b8277509909bd10987b6ca09fcc5",
+    "arm64-v8a": {
+        "0906ebed0424c25df4886735efc40146044f9c78ee2b7e7a5d1c470da56c6173",  # official 5.6.6
+        "5cbe3f1b8f4f659bce48e49cb836a56cce91a9ee74432097ba6b78312c9b2bcc",  # disc-dovi-test-37
+    },
+    "armeabi-v7a": {
+        "ff6bfa26006a50c6825b64d2f6a3107dfa99b8277509909bd10987b6ca09fcc5",  # official 5.6.6
+        "6c28f341a58f832e15edb9858d7428e2a5846fa8658def10e9d177886dada7ce",  # disc-dovi-test-37
+    },
 }
 ELF_MACHINE = {"arm64-v8a": (2, 183), "armeabi-v7a": (1, 40)}
 MENU_MARKERS = (b"discnav\0", b"disc-menu-active\0", b"dvdnav_menu_call\0", b"bd_menu_call\0")
@@ -87,13 +93,13 @@ def main():
     apks = {abi: path for abi, path in (("arm64-v8a", args.arm64),
                                        ("armeabi-v7a", args.armeabi)) if path is not None}
     if not apks:
-        parser.error("Provide at least one official APK")
+        parser.error("Provide at least one verified APK source")
 
     verified = {}
     for abi, apk in apks.items():
         digest = sha256(apk)
-        if digest != APK_HASHES[abi].lower():
-            raise ValueError(f"Official {abi} APK SHA256 mismatch: {digest}")
+        if digest not in {value.lower() for value in APK_HASHES[abi]}:
+            raise ValueError(f"Verified MPV source APK SHA256 mismatch for {abi}: {digest}")
         with zipfile.ZipFile(apk) as archive:
             binary = archive.read(f"lib/{abi}/libmpv.so")  # Also verifies ZIP CRC.
         verify_elf(binary, abi)
