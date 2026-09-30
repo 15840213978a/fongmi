@@ -76,4 +76,13 @@
     <string name="dialog_action_sync_download">Sync mode: download</string>
 
     <string name="subtitle_search_api_title">Assrt</string>
+
+    <!-- OK-style home quick actions -->
+    <string name="ok_quick_search">Search</string>
+    <string name="ok_quick_push">Push</string>
+    <string name="ok_quick_local">Local</string>
+    <string name="ok_quick_keep">Favorites</string>
+    <string name="ok_quick_history">History</string>
+    <string name="ok_quick_site">Sources</string>
+
 </resources>
