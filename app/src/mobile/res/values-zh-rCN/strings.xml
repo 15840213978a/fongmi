@@ -76,4 +76,13 @@
     <string name="dialog_action_sync_download">同步模式：下载</string>
 
     <string name="subtitle_search_api_title">Assrt</string>
+
+    <!-- OK 风格首页快捷入口 -->
+    <string name="ok_quick_search">搜索</string>
+    <string name="ok_quick_push">推送</string>
+    <string name="ok_quick_local">本地</string>
+    <string name="ok_quick_keep">收藏</string>
+    <string name="ok_quick_history">历史</string>
+    <string name="ok_quick_site">换源</string>
+
 </resources>
