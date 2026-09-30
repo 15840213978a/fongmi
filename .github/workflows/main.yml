@@ -4,7 +4,7 @@ name: Build APK
 
 on:
   push:
-    branches: [ fongmi ]
+    branches: [ fongmi, 'codex/ok516-rebuild-20260930' ]
   workflow_dispatch:
 
 permissions:
