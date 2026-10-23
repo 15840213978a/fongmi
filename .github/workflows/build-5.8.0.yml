@@ -34,13 +34,27 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK packages
+      # Use the Android SDK preinstalled on GitHub-hosted runners.
+      # android-actions/setup-android@v3 failed while requesting the obsolete "tools" package.
+      - name: Configure Android SDK
+        shell: bash
         run: |
-          sdkmanager --install "platform-tools" "platforms;android-37" "build-tools;37.0.0"
-          yes | sdkmanager --licenses >/dev/null
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager 2>/dev/null | sort -V | tail -n 1 || true)"
+          if [ -z "$SDKMANAGER" ]; then
+            SDKMANAGER="$(command -v sdkmanager || true)"
+          fi
+          if [ -z "$SDKMANAGER" ]; then
+            echo "::error::sdkmanager was not found in the runner's preinstalled Android SDK."
+            exit 1
+          fi
+
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install "platform-tools" "platforms;android-37" "build-tools;37.0.0"
 
       - name: Create temporary CI signing key
         shell: bash
@@ -82,5 +96,3 @@ jobs:
           path: app/build/outputs/apk/**/*.apk
           if-no-files-found: error
           retention-days: 14
-
-# Re-submitted to trigger the 5.8.0 build workflow.
