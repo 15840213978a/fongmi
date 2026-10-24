@@ -24,6 +24,8 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -44,37 +46,29 @@ jobs:
             SDKMANAGER="$(command -v sdkmanager || true)"
           fi
           if [ -z "$SDKMANAGER" ]; then
-            echo "::error::sdkmanager was not found in the runner's preinstalled Android SDK."
+            echo "::error::sdkmanager was not found."
             exit 1
           fi
 
           yes | "$SDKMANAGER" --licenses >/dev/null || true
 
-          # API 37 的 SDK 包名是 platforms;android-37.0（不是 platforms;android-37）
           "$SDKMANAGER" --channel=3 --install \
             "platform-tools" \
             "platforms;android-37.0" \
             "build-tools;37.0.0"
 
-          # 确认安装结果
           if [ ! -d "$SDK_ROOT/platforms/android-37.0" ]; then
             echo "::error::Android SDK platform 37.0 was not installed."
-            echo "Contents of $SDK_ROOT/platforms:"
             ls -la "$SDK_ROOT/platforms" 2>/dev/null || true
             exit 1
           fi
-          echo "Found Android platform directory: $SDK_ROOT/platforms/android-37.0"
 
-          # AGP 按 hash string 'android-37' 查找平台，补符号链接以兼容
           if [ ! -e "$SDK_ROOT/platforms/android-37" ]; then
             ln -s "$SDK_ROOT/platforms/android-37.0" "$SDK_ROOT/platforms/android-37"
-            echo "Created symlink: android-37 -> android-37.0"
           fi
 
           test -d "$SDK_ROOT/build-tools/37.0.0" || {
             echo "::error::Android Build Tools 37.0.0 were not installed."
-            echo "Contents of $SDK_ROOT/build-tools:"
-            ls -la "$SDK_ROOT/build-tools" 2>/dev/null || true
             exit 1
           }
 
