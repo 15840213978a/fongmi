@@ -24,14 +24,47 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
-        with:
-          lfs: true
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
+
+      # 尝试获取缺失的 AAR 依赖
+      - name: Fetch local AAR dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p app/libs
+
+          # 1. 尝试下载 lib-decoder-ffmpeg-release.aar (来源：第三方 Gitee 仓库)
+          if [ ! -f "app/libs/lib-decoder-ffmpeg-release.aar" ]; then
+            echo "lib-decoder-ffmpeg-release.aar 不存在，尝试从 Gitee 下载..."
+            curl -L -o app/libs/lib-decoder-ffmpeg-release.aar \
+              "https://gitee.com/mzhsy/MzDKPlayer/raw/main/app/libs/lib-decoder-ffmpeg-release.aar" || {
+              echo "::error::下载 lib-decoder-ffmpeg-release.aar 失败。"
+              exit 1
+            }
+            # 简单校验文件大小，避免下载到错误页面
+            if [ $(stat -c%s "app/libs/lib-decoder-ffmpeg-release.aar") -lt 1000000 ]; then
+              echo "::error::下载的文件过小，可能不是有效的 AAR 文件。"
+              exit 1
+            fi
+            echo "lib-decoder-ffmpeg-release.aar 下载完成。"
+          else
+            echo "lib-decoder-ffmpeg-release.aar 已存在。"
+          fi
+
+          # 2. 检查 lib-mpvplayer-release.aar (无公开源，必须手动提供)
+          if [ ! -f "app/libs/lib-mpvplayer-release.aar" ]; then
+            echo "::error::缺少 lib-mpvplayer-release.aar。"
+            echo "FongMi/TV 官方说明配套 AAR 未纳入 Git，且此文件无公开下载源。"
+            echo "请从你获取源码的原始渠道找到该文件，放入仓库的 app/libs/ 目录后重新运行。"
+            exit 1
+          else
+            echo "lib-mpvplayer-release.aar 已存在。"
+          fi
 
       - name: Configure Android SDK
         shell: bash
