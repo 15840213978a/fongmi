@@ -3,12 +3,9 @@ name: Build FongMi 5.8.0 APK
 on:
   push:
     branches:
-      - upgrade/official-5.8.0-base
-      - fongmi
+      - "**"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    branches:
-      - fongmi
   workflow_dispatch:
 
 permissions:
