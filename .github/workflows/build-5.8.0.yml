@@ -50,8 +50,25 @@ jobs:
             exit 1
           fi
 
+          # API 37 / Build Tools 37 may be published on the preview channel.
+          # Enable all SDK license prompts before installing the exact versions
+          # declared in gradle/libs.versions.toml.
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" --install "platform-tools" "platforms;android-37" "build-tools;37.0.0"
+          "$SDKMANAGER" --channel=3 --install \
+            "platform-tools" \
+            "platforms;android-37" \
+            "build-tools;37.0.0"
+
+          # Fail early with a clear message if the requested SDK packages were
+          # not actually installed, rather than failing later inside Gradle.
+          test -d "$SDK_ROOT/platforms/android-37" || {
+            echo "::error::Android SDK platform 37 was not installed. Check SDK repository availability."
+            exit 1
+          }
+          test -d "$SDK_ROOT/build-tools/37.0.0" || {
+            echo "::error::Android Build Tools 37.0.0 were not installed."
+            exit 1
+          }
 
       - name: Create temporary CI signing key
         shell: bash
