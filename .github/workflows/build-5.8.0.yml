@@ -31,8 +31,6 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      # Use the Android SDK preinstalled on GitHub-hosted runners.
-      # android-actions/setup-android@v3 failed while requesting the obsolete "tools" package.
       - name: Configure Android SDK
         shell: bash
         run: |
@@ -50,27 +48,28 @@ jobs:
             exit 1
           fi
 
-          # API 37 / Build Tools 37 may be published on the preview channel.
-          # Enable all SDK license prompts before installing the exact versions
-          # declared in gradle/libs.versions.toml.
           yes | "$SDKMANAGER" --licenses >/dev/null || true
+
+          # API 37 的 SDK 包名是 platforms;android-37.0（不是 platforms;android-37）
           "$SDKMANAGER" --channel=3 --install \
             "platform-tools" \
-            "platforms;android-37" \
+            "platforms;android-37.0" \
             "build-tools;37.0.0"
 
-          # Fail early with a clear message if the requested SDK packages were
-          # not actually installed, rather than failing later inside Gradle.
-          # NOTE: the installed directory may be "android-37" or "android-37.0",
-          # so match the prefix instead of hard-coding the exact name.
-          PLATFORM_DIR="$(find "$SDK_ROOT/platforms" -maxdepth 1 -type d -name 'android-37*' 2>/dev/null | head -n 1 || true)"
-          if [ -z "$PLATFORM_DIR" ]; then
-            echo "::error::Android SDK platform 37 was not installed. Check SDK repository availability."
+          # 确认安装结果
+          if [ ! -d "$SDK_ROOT/platforms/android-37.0" ]; then
+            echo "::error::Android SDK platform 37.0 was not installed."
             echo "Contents of $SDK_ROOT/platforms:"
             ls -la "$SDK_ROOT/platforms" 2>/dev/null || true
             exit 1
           fi
-          echo "Found Android platform directory: $PLATFORM_DIR"
+          echo "Found Android platform directory: $SDK_ROOT/platforms/android-37.0"
+
+          # AGP 按 hash string 'android-37' 查找平台，补符号链接以兼容
+          if [ ! -e "$SDK_ROOT/platforms/android-37" ]; then
+            ln -s "$SDK_ROOT/platforms/android-37.0" "$SDK_ROOT/platforms/android-37"
+            echo "Created symlink: android-37 -> android-37.0"
+          fi
 
           test -d "$SDK_ROOT/build-tools/37.0.0" || {
             echo "::error::Android Build Tools 37.0.0 were not installed."
