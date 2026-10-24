@@ -61,12 +61,21 @@ jobs:
 
           # Fail early with a clear message if the requested SDK packages were
           # not actually installed, rather than failing later inside Gradle.
-          test -d "$SDK_ROOT/platforms/android-37" || {
+          # NOTE: the installed directory may be "android-37" or "android-37.0",
+          # so match the prefix instead of hard-coding the exact name.
+          PLATFORM_DIR="$(find "$SDK_ROOT/platforms" -maxdepth 1 -type d -name 'android-37*' 2>/dev/null | head -n 1 || true)"
+          if [ -z "$PLATFORM_DIR" ]; then
             echo "::error::Android SDK platform 37 was not installed. Check SDK repository availability."
+            echo "Contents of $SDK_ROOT/platforms:"
+            ls -la "$SDK_ROOT/platforms" 2>/dev/null || true
             exit 1
-          }
+          fi
+          echo "Found Android platform directory: $PLATFORM_DIR"
+
           test -d "$SDK_ROOT/build-tools/37.0.0" || {
             echo "::error::Android Build Tools 37.0.0 were not installed."
+            echo "Contents of $SDK_ROOT/build-tools:"
+            ls -la "$SDK_ROOT/build-tools" 2>/dev/null || true
             exit 1
           }
 
