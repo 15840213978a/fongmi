@@ -1,56 +1,46 @@
-name: Publish website to GitHub Pages
+name: Publish official FongMi 5.8.1 APKs to Release
 
 on:
-  push:
-    branches: [fongmi]
-    paths:
-      - "website/**"
-      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
-  contents: read
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
+  contents: write
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: website
-    permissions:
-      contents: read
-      pages: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: website/package-lock.json
-      - uses: actions/configure-pages@v5
-        id: pages
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run build
-        env:
-          SITE_URL: ${{ steps.pages.outputs.base_url }}
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: website/out
+  publish:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/deploy-pages@v5
-        id: deployment
+      - name: Download official 5.8.1 APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/apks"
+          for filename in \
+            mobile-arm64_v8a.apk \
+            mobile-armeabi_v7a.apk \
+            leanback-arm64_v8a.apk \
+            leanback-armeabi_v7a.apk
+          do
+            curl --fail --location --retry 3 --retry-all-errors \
+              --connect-timeout 20 --max-time 600 \
+              "https://github.com/FongMi/Release/releases/download/5.8.1/$filename" \
+              --output "$RUNNER_TEMP/apks/$filename"
+            ls -la "$RUNNER_TEMP/apks/$filename"
+          done
+
+      - name: Publish to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: 5.8.1-official
+          name: FongMi 5.8.1 官方构建
+          body: |
+            直接来自 FongMi/Release 的官方 5.8.1 APK。
+
+            来源：https://github.com/FongMi/Release/releases/tag/5.8.1
+          files: |
+            ${{ runner.temp }}/apks/*.apk
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
