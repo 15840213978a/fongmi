@@ -1,7 +1,7 @@
 name: Inject Source into Official APK
 
 on:
-  workflow_dispatch: # 允许手动点击运行
+  workflow_dispatch:
 
 jobs:
   build:
@@ -15,46 +15,45 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      # 1. 下载最新（或指定版本）的官方 APK
+      # 1. 下载官方 APK（使用你提供的真实链接）
       - name: Download Official APK
         run: |
-          # 这里以 5.8.3 版本的 leanback-arm64 为例，你可以根据需要修改
-          APK_URL="https://github.com/15840213978a/fongmi/releases/download/v5.8.3/leanback-arm64_v8a.apk"
-          echo "正在下载 APK: $APK_URL"
-          curl -L -o original.apk "$APK_URL"
-          echo "下载完成，文件大小："
-          ls -lh original.apk
+          # 使用你刚刚提供的链接
+          APK_URL="https://github.com/15840213978a/fongmi/releases/download/5.8.3-official/mobile-arm64_v8a.apk"
+          
+          echo "尝试下载: $APK_URL"
+          curl -fL -o original.apk "$APK_URL"
+          
+          # 检查文件大小，防止下载到 404 网页或错误文件
+          MIN_SIZE=$((1024 * 1024))
+          ACTUAL_SIZE=$(stat -c%s "original.apk")
+          if [ "$ACTUAL_SIZE" -lt "$MIN_SIZE" ]; then
+            echo "::error::下载的 APK 大小异常 ($ACTUAL_SIZE 字节)，可能链接失效或返回了网页。"
+            exit 1
+          fi
+          echo "下载成功，文件大小: $ACTUAL_SIZE 字节"
 
-      # 2. 安装 APK 工具（apktool 用于解包和重打包，uber-apk-signer 用于签名）
+      # 2. 安装所需工具
       - name: Install Tools
         run: |
           sudo apt-get update
           sudo apt-get install -y apktool
-          wget https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar -O uber-apk-signer.jar
+          wget -q https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar -O uber-apk-signer.jar
 
       # 3. 解包 APK
       - name: Decode APK
         run: |
           apktool d -f original.apk -o decoded_dir
 
-      # 4. 注入你的内置源（修改 assets 目录下的配置文件）
+      # 4. 注入内置源
       - name: Inject Source Config
         run: |
-          # 注意：FongMi 的配置文件可能叫 config.json，也可能在 assets/default.json，请解包后确认
+          mkdir -p decoded_dir/assets
+          # 注意：FongMi 实际的配置文件可能叫 config.json 或 default.json，请解包后确认
           CONFIG_PATH="decoded_dir/assets/config.json"
           
-          # 如果没有找到 config.json，就创建一个
-          if [ ! -f "$CONFIG_PATH" ]; then
-            echo "::warning::未找到 config.json，尝试在其他位置查找"
-            # 这里可以添加查找逻辑，比如 find decoded_dir/assets -name "*.json"
-            # 为了演示，我们直接在 assets 根目录建一个
-            CONFIG_PATH="decoded_dir/assets/config.json"
-            mkdir -p decoded_dir/assets
-          fi
-          
-          # 写入你的源。这里用的是一个示例格式，你需要替换成你真实的 TVBox 配置 JSON 或者接口地址
-          # 如果你的配置很长，建议把 JSON 放在这个仓库里，然后用 cp 命令复制过去
-          echo '{
+          cat > "$CONFIG_PATH" << 'EOF'
+          {
             "sites": [
               {
                 "key": "my_source",
@@ -65,31 +64,35 @@ jobs:
                 "quickSearch": 1
               }
             ]
-          }' > "$CONFIG_PATH"
-          
-          echo "内置源已注入到 $CONFIG_PATH"
+          }
+          EOF
+          echo "内置源已注入 $CONFIG_PATH"
 
-      # 5. 重新打包 APK
+      # 5. 重新打包
       - name: Rebuild APK
         run: |
           apktool b decoded_dir -o unsigned.apk
-          echo "重打包完成"
 
-      # 6. 对 APK 进行签名（使用 debug 签名，或者你自己的 release 签名）
+      # 6. 签名 APK
       - name: Sign APK
         run: |
-          # 使用 uber-apk-signer 自动生成并应用 debug 签名
           java -jar uber-apk-signer.jar --apk unsigned.apk --allowResign --overwrite
           
-          # 重命名签好名的包
-          mv unsigned-aligned-signed.apk final.apk
-          echo "签名完成"
+          if [ -f "unsigned-aligned-signed.apk" ]; then
+            mv unsigned-aligned-signed.apk final.apk
+          elif [ -f "unsigned-signed.apk" ]; then
+            mv unsigned-signed.apk final.apk
+          else
+            echo "::warning::未找到签好名的包，尝试兜底处理"
+            mv unsigned.apk final.apk || exit 1
+          fi
           ls -lh final.apk
 
-      # 7. 上传最终的 APK
+      # 7. 上传成品
       - name: Upload Final APK
         uses: actions/upload-artifact@v4
         with:
           name: FongMi-Custom-APK
           path: final.apk
+          if-no-files-found: error
           retention-days: 7
