@@ -22,14 +22,30 @@ jobs:
 
       - name: Download Official Apktool JAR
         run: |
-          # 下载官方 apktool.jar，避免使用 apt 安装的损坏版本
           wget -q https://github.com/iBotPeaches/Apktool/releases/download/v2.12.0/apktool_2.12.0.jar \
             -O /tmp/apktool.jar
           chmod +x /tmp/apktool.jar
 
+      - name: Verify workspace and decode if needed
+        run: |
+          echo "Current directory: $(pwd)"
+          ls -la
+          if [ ! -d "decoded_dir" ]; then
+            echo "decoded_dir not found. Looking for an APK to decode..."
+            # 找到仓库根目录下的第一个 .apk 文件作为原始包
+            ORIGINAL_APK=$(find . -maxdepth 1 -name "*.apk" | head -n 1)
+            if [ -z "$ORIGINAL_APK" ]; then
+              echo "Error: no .apk file found in repository root. Please add your original APK."
+              exit 1
+            fi
+            echo "Decoding $ORIGINAL_APK -> decoded_dir"
+            java -jar /tmp/apktool.jar d "$ORIGINAL_APK" -o decoded_dir
+          else
+            echo "decoded_dir already exists, skipping decode."
+          fi
+
       - name: Build APK with Official Apktool
         run: |
-          # 用 java -jar 直接调用，替代有问题的 apktool 命令
           java -jar /tmp/apktool.jar b decoded_dir -o unsigned.apk
 
       - name: Upload Unsigned APK
